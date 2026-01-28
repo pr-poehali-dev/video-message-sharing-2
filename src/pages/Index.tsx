@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -26,43 +26,162 @@ interface Message {
   time: string;
   isMine: boolean;
   type: 'text' | 'video';
-  videoUrl?: string;
 }
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<TabType>('contacts');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messageInput, setMessageInput] = useState('');
-
-  const contacts: Contact[] = [
+  const [contacts, setContacts] = useState<Contact[]>([
     { id: 1, name: 'Анна Иванова', avatar: '👩‍💼', lastMessage: 'Привет! Как дела?', time: '10:30', unread: 2, online: true },
     { id: 2, name: 'Группа 6В', avatar: '🎓', lastMessage: 'Домашка на завтра?', time: '09:15', unread: 5, online: false },
     { id: 3, name: 'Максим Петров', avatar: '👨‍💻', lastMessage: 'Отправил видео', time: 'Вчера', unread: 0, online: false },
     { id: 4, name: 'Мария Смирнова', avatar: '👩‍🎨', lastMessage: 'Спасибо!', time: 'Вчера', unread: 0, online: true },
-  ];
+  ]);
 
-  const messages: Message[] = [
-    { id: 1, text: 'Привет! Как дела?', time: '10:25', isMine: false, type: 'text' },
-    { id: 2, text: 'Отлично! А у тебя?', time: '10:27', isMine: true, type: 'text' },
-    { id: 3, text: 'Тоже хорошо 😊', time: '10:30', isMine: false, type: 'text' },
-    { id: 4, text: 'Смотри какое видео нашла!', time: '10:31', isMine: false, type: 'video', videoUrl: '/placeholder.svg' },
-  ];
+  const [chatMessages, setChatMessages] = useState<{ [key: number]: Message[] }>({
+    1: [
+      { id: 1, text: 'Привет! Как дела?', time: '10:25', isMine: false, type: 'text' },
+      { id: 2, text: 'Отлично! А у тебя?', time: '10:27', isMine: true, type: 'text' },
+      { id: 3, text: 'Тоже хорошо 😊', time: '10:30', isMine: false, type: 'text' },
+    ],
+    2: [
+      { id: 1, text: 'Домашка на завтра?', time: '09:15', isMine: false, type: 'text' },
+      { id: 2, text: 'Задачи 5-10 из учебника', time: '09:20', isMine: true, type: 'text' },
+    ],
+    3: [
+      { id: 1, text: 'Привет!', time: 'Вчера', isMine: false, type: 'text' },
+      { id: 2, text: 'Смотри какой видос', time: 'Вчера', isMine: false, type: 'video' },
+    ],
+    4: [
+      { id: 1, text: 'Спасибо большое!', time: 'Вчера', isMine: false, type: 'text' },
+      { id: 2, text: 'Всегда пожалуйста! 😊', time: 'Вчера', isMine: true, type: 'text' },
+    ],
+  });
+
+  const [totalUnread, setTotalUnread] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const total = contacts.reduce((sum, contact) => sum + contact.unread, 0);
+    setTotalUnread(total);
+  }, [contacts]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, selectedContact]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (Math.random() > 0.7 && selectedContact && selectedContact.id !== 1) {
+        simulateIncomingMessage();
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [selectedContact]);
+
+  const getCurrentTime = () => {
+    const now = new Date();
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const simulateIncomingMessage = () => {
+    if (!selectedContact) return;
+    
+    const responses = [
+      'Как дела?',
+      'Ты где? 🤔',
+      'Ответь, пожалуйста!',
+      'Окей, понял!',
+      'Супер! 🎉',
+    ];
+    
+    const randomMessage = responses[Math.floor(Math.random() * responses.length)];
+    const newMessage: Message = {
+      id: Date.now(),
+      text: randomMessage,
+      time: getCurrentTime(),
+      isMine: false,
+      type: 'text',
+    };
+
+    setChatMessages(prev => ({
+      ...prev,
+      [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage],
+    }));
+
+    setContacts(prev => prev.map(c => 
+      c.id === selectedContact.id 
+        ? { ...c, lastMessage: randomMessage, time: getCurrentTime(), unread: c.id === selectedContact.id ? c.unread : c.unread + 1 }
+        : c
+    ));
+
+    toast.info(`Новое сообщение от ${selectedContact.name}`, {
+      description: randomMessage,
+      duration: 3000,
+    });
+  };
 
   const handleSendMessage = () => {
-    if (messageInput.trim()) {
-      toast.success('Сообщение отправлено', {
-        description: 'Ваше сообщение успешно доставлено',
-        duration: 2000,
-      });
-      setMessageInput('');
+    if (!messageInput.trim() || !selectedContact) return;
+
+    const newMessage: Message = {
+      id: Date.now(),
+      text: messageInput,
+      time: getCurrentTime(),
+      isMine: true,
+      type: 'text',
+    };
+
+    setChatMessages(prev => ({
+      ...prev,
+      [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage],
+    }));
+
+    setContacts(prev => prev.map(c => 
+      c.id === selectedContact.id 
+        ? { ...c, lastMessage: messageInput, time: getCurrentTime() }
+        : c
+    ));
+
+    toast.success('Отправлено!', { duration: 1000 });
+    setMessageInput('');
+  };
+
+  const handleSelectContact = (contact: Contact) => {
+    setSelectedContact(contact);
+    if (contact.unread > 0) {
+      setContacts(prev => prev.map(c => 
+        c.id === contact.id ? { ...c, unread: 0 } : c
+      ));
     }
   };
 
   const handleAttachVideo = () => {
-    toast.info('Загрузка видео', {
-      description: 'Функция в разработке',
-      duration: 2000,
-    });
+    if (!selectedContact) return;
+
+    const newMessage: Message = {
+      id: Date.now(),
+      text: 'Отправил видео',
+      time: getCurrentTime(),
+      isMine: true,
+      type: 'video',
+    };
+
+    setChatMessages(prev => ({
+      ...prev,
+      [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage],
+    }));
+
+    setContacts(prev => prev.map(c => 
+      c.id === selectedContact.id 
+        ? { ...c, lastMessage: 'Отправил видео', time: getCurrentTime() }
+        : c
+    ));
+
+    toast.success('Видео отправлено!', { duration: 1500 });
   };
 
   const renderTabContent = () => {
@@ -80,7 +199,7 @@ const Index = () => {
                 {contacts.map((contact) => (
                   <div
                     key={contact.id}
-                    onClick={() => setSelectedContact(contact)}
+                    onClick={() => handleSelectContact(contact)}
                     className={`p-4 cursor-pointer transition-all hover:bg-muted/50 border-b border-border/50 ${
                       selectedContact?.id === contact.id ? 'bg-muted' : ''
                     }`}
@@ -127,9 +246,9 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <ScrollArea className="flex-1 p-4">
+                  <ScrollArea className="flex-1 p-4" ref={scrollRef}>
                     <div className="space-y-4">
-                      {messages.map((message) => (
+                      {(chatMessages[selectedContact.id] || []).map((message) => (
                         <div
                           key={message.id}
                           className={`flex ${message.isMine ? 'justify-end' : 'justify-start'} animate-fade-in`}
@@ -138,7 +257,7 @@ const Index = () => {
                             className={`max-w-[70%] rounded-2xl p-3 ${
                               message.isMine
                                 ? 'bg-gradient-to-r from-primary to-secondary text-primary-foreground'
-                                : 'bg-card'
+                                : 'bg-card border border-border'
                             }`}
                           >
                             {message.type === 'video' && (
@@ -307,9 +426,11 @@ const Index = () => {
           <div className="flex gap-2">
             <Button variant="ghost" size="icon" className="hover:bg-accent/20 relative">
               <Icon name="Bell" size={20} />
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-destructive text-xs">
-                3
-              </Badge>
+              {totalUnread > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-destructive text-xs">
+                  {totalUnread}
+                </Badge>
+              )}
             </Button>
           </div>
         </div>
