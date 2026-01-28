@@ -5,8 +5,12 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
+
+const API_URL = 'https://functions.poehali.dev/a7ff2fba-cc6a-4321-a8fd-a8576214edb1';
+const CURRENT_USER_ID = 1;
 
 type TabType = 'contacts' | 'profile' | 'settings' | 'search' | 'gallery';
 
@@ -32,37 +36,21 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState<TabType>('contacts');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messageInput, setMessageInput] = useState('');
-  const [contacts, setContacts] = useState<Contact[]>([
-    { id: 1, name: 'Анна Иванова', avatar: '👩‍💼', lastMessage: 'Привет! Как дела?', time: '10:30', unread: 2, online: true },
-    { id: 2, name: 'Группа 6В', avatar: '🎓', lastMessage: 'Домашка на завтра?', time: '09:15', unread: 5, online: false },
-    { id: 3, name: 'Максим Петров', avatar: '👨‍💻', lastMessage: 'Отправил видео', time: 'Вчера', unread: 0, online: false },
-    { id: 4, name: 'Мария Смирнова', avatar: '👩‍🎨', lastMessage: 'Спасибо!', time: 'Вчера', unread: 0, online: true },
-  ]);
-
-  const [chatMessages, setChatMessages] = useState<{ [key: number]: Message[] }>({
-    1: [
-      { id: 1, text: 'Привет! Как дела?', time: '10:25', isMine: false, type: 'text' },
-      { id: 2, text: 'Отлично! А у тебя?', time: '10:27', isMine: true, type: 'text' },
-      { id: 3, text: 'Тоже хорошо 😊', time: '10:30', isMine: false, type: 'text' },
-    ],
-    2: [
-      { id: 1, text: 'Домашка на завтра?', time: '09:15', isMine: false, type: 'text' },
-      { id: 2, text: 'Задачи 5-10 из учебника', time: '09:20', isMine: true, type: 'text' },
-    ],
-    3: [
-      { id: 1, text: 'Привет!', time: 'Вчера', isMine: false, type: 'text' },
-      { id: 2, text: 'Смотри какой видос', time: 'Вчера', isMine: false, type: 'video' },
-    ],
-    4: [
-      { id: 1, text: 'Спасибо большое!', time: 'Вчера', isMine: false, type: 'text' },
-      { id: 2, text: 'Всегда пожалуйста! 😊', time: 'Вчера', isMine: true, type: 'text' },
-    ],
-  });
-
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [chatMessages, setChatMessages] = useState<{ [key: number]: Message[] }>({});
   const [totalUnread, setTotalUnread] = useState(0);
-  const [isTyping, setIsTyping] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(false);
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactAvatar, setNewContactAvatar] = useState('👤');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const avatarOptions = ['👤', '👨', '👩', '👨‍💼', '👩‍💼', '👨‍💻', '👩‍💻', '👨‍🎨', '👩‍🎨', '🎓', '👑', '🤖'];
+
+  useEffect(() => {
+    loadContacts();
+  }, []);
 
   useEffect(() => {
     const total = contacts.reduce((sum, contact) => sum + contact.unread, 0);
@@ -74,123 +62,178 @@ const Index = () => {
   }, [chatMessages, selectedContact]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (Math.random() > 0.6 && selectedContact) {
-        simulateIncomingMessage();
-      }
-    }, 7000);
-    return () => clearInterval(interval);
-  }, [selectedContact, chatMessages]);
-
-  const getCurrentTime = () => {
-    const now = new Date();
-    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-  };
-
-  const simulateIncomingMessage = () => {
     if (!selectedContact) return;
     
-    setIsTyping(true);
+    const interval = setInterval(() => {
+      loadMessages(selectedContact.id);
+    }, 5000);
     
-    setTimeout(() => {
-      const responses = [
-        'Как дела?',
-        'Ты где? 🤔',
-        'Окей, понял!',
-        'Супер! 🎉',
-        'Спасибо большое!',
-        'А что по домашке?',
-        'Созвонимся вечером?',
-        'Увидимся завтра! 👋',
-      ];
-      
-      const randomMessage = responses[Math.floor(Math.random() * responses.length)];
-      const newMessage: Message = {
-        id: Date.now(),
-        text: randomMessage,
-        time: getCurrentTime(),
-        isMine: false,
-        type: 'text',
-      };
+    return () => clearInterval(interval);
+  }, [selectedContact]);
 
-      setChatMessages(prev => ({
-        ...prev,
-        [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage],
-      }));
-
-      setContacts(prev => prev.map(c => 
-        c.id === selectedContact.id 
-          ? { ...c, lastMessage: randomMessage, time: getCurrentTime() }
-          : c
-      ));
-
-      setIsTyping(false);
-      
-      toast.info(`Новое сообщение от ${selectedContact.name}`, {
-        description: randomMessage,
-        duration: 2000,
-      });
-    }, 1500);
-  };
-
-  const handleSendMessage = () => {
-    if (!messageInput.trim() || !selectedContact) return;
-
-    const newMessage: Message = {
-      id: Date.now(),
-      text: messageInput,
-      time: getCurrentTime(),
-      isMine: true,
-      type: 'text',
-    };
-
-    setChatMessages(prev => ({
-      ...prev,
-      [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage],
-    }));
-
-    setContacts(prev => prev.map(c => 
-      c.id === selectedContact.id 
-        ? { ...c, lastMessage: messageInput, time: getCurrentTime() }
-        : c
-    ));
-
-    toast.success('Отправлено!', { duration: 1000 });
-    setMessageInput('');
-  };
-
-  const handleSelectContact = (contact: Contact) => {
-    setSelectedContact(contact);
-    if (contact.unread > 0) {
-      setContacts(prev => prev.map(c => 
-        c.id === contact.id ? { ...c, unread: 0 } : c
-      ));
+  const loadContacts = async () => {
+    try {
+      const response = await fetch(`${API_URL}?action=contacts&userId=${CURRENT_USER_ID}`);
+      const data = await response.json();
+      setContacts(data.contacts || []);
+    } catch (error) {
+      toast.error('Ошибка загрузки контактов');
     }
   };
 
-  const handleAttachVideo = () => {
-    if (!selectedContact) return;
+  const loadMessages = async (contactId: number) => {
+    try {
+      const response = await fetch(`${API_URL}?action=messages&userId=${CURRENT_USER_ID}&contactId=${contactId}`);
+      const data = await response.json();
+      setChatMessages(prev => ({
+        ...prev,
+        [contactId]: data.messages || []
+      }));
+      
+      setContacts(prev => prev.map(c => 
+        c.id === contactId ? { ...c, unread: 0 } : c
+      ));
+    } catch (error) {
+      toast.error('Ошибка загрузки сообщений');
+    }
+  };
 
-    const newMessage: Message = {
-      id: Date.now(),
-      text: 'Отправил видео',
-      time: getCurrentTime(),
-      isMine: true,
-      type: 'video',
-    };
+  const handleSelectContact = async (contact: Contact) => {
+    setSelectedContact(contact);
+    if (!chatMessages[contact.id]) {
+      await loadMessages(contact.id);
+    }
+  };
 
-    setChatMessages(prev => ({
-      ...prev,
-      [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage],
-    }));
+  const handleSendMessage = async () => {
+    if (!messageInput.trim() || !selectedContact || loading) return;
 
-    setContacts(prev => prev.map(c => 
-      c.id === selectedContact.id 
-        ? { ...c, lastMessage: 'Отправил видео', time: getCurrentTime() }
-        : c
-    ));
+    setLoading(true);
+    
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send_message',
+          receiverId: selectedContact.id,
+          text: messageInput,
+          type: 'text'
+        })
+      });
 
-    toast.success('Видео отправлено!', { duration: 1500 });
+      const data = await response.json();
+      
+      if (data.success) {
+        const newMessage: Message = {
+          id: data.messageId,
+          text: messageInput,
+          time: data.time,
+          isMine: true,
+          type: 'text'
+        };
+
+        setChatMessages(prev => ({
+          ...prev,
+          [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
+        }));
+
+        setContacts(prev => prev.map(c => 
+          c.id === selectedContact.id 
+            ? { ...c, lastMessage: messageInput, time: data.time }
+            : c
+        ));
+
+        setMessageInput('');
+        toast.success('Отправлено!', { duration: 1000 });
+      }
+    } catch (error) {
+      toast.error('Ошибка отправки сообщения');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAttachVideo = async () => {
+    if (!selectedContact || loading) return;
+
+    setLoading(true);
+    
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send_message',
+          receiverId: selectedContact.id,
+          text: 'Отправил видео',
+          type: 'video'
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        const newMessage: Message = {
+          id: data.messageId,
+          text: 'Отправил видео',
+          time: data.time,
+          isMine: true,
+          type: 'video'
+        };
+
+        setChatMessages(prev => ({
+          ...prev,
+          [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
+        }));
+
+        setContacts(prev => prev.map(c => 
+          c.id === selectedContact.id 
+            ? { ...c, lastMessage: 'Отправил видео', time: data.time }
+            : c
+        ));
+
+        toast.success('Видео отправлено!', { duration: 1500 });
+      }
+    } catch (error) {
+      toast.error('Ошибка отправки видео');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddContact = async () => {
+    if (!newContactName.trim() || loading) return;
+
+    setLoading(true);
+    
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_contact',
+          name: newContactName,
+          avatar: newContactAvatar,
+          phone: newContactPhone || null
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success('Контакт добавлен!');
+        setNewContactName('');
+        setNewContactPhone('');
+        setNewContactAvatar('👤');
+        setIsAddDialogOpen(false);
+        await loadContacts();
+      }
+    } catch (error) {
+      toast.error('Ошибка добавления контакта');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderTabContent = () => {
@@ -199,10 +242,67 @@ const Index = () => {
         return (
           <div className="flex h-full">
             <div className="w-80 border-r border-border">
-              <div className="p-4 border-b border-border">
+              <div className="p-4 border-b border-border flex items-center justify-between">
                 <h2 className="text-xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
                   Контакты
                 </h2>
+                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="icon" variant="ghost" className="hover:bg-accent/20">
+                      <Icon name="UserPlus" size={20} />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Добавить контакт</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-4">
+                      <div>
+                        <label className="text-sm font-medium">Имя</label>
+                        <Input
+                          value={newContactName}
+                          onChange={(e) => setNewContactName(e.target.value)}
+                          placeholder="Введите имя"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Телефон (необязательно)</label>
+                        <Input
+                          value={newContactPhone}
+                          onChange={(e) => setNewContactPhone(e.target.value)}
+                          placeholder="+7 (999) 123-45-67"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Аватар</label>
+                        <div className="grid grid-cols-6 gap-2 mt-2">
+                          {avatarOptions.map((avatar) => (
+                            <button
+                              key={avatar}
+                              onClick={() => setNewContactAvatar(avatar)}
+                              className={`text-3xl p-2 rounded-lg border-2 transition-all ${
+                                newContactAvatar === avatar 
+                                  ? 'border-primary bg-primary/10 scale-110' 
+                                  : 'border-border hover:border-accent'
+                              }`}
+                            >
+                              {avatar}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <Button 
+                        onClick={handleAddContact} 
+                        disabled={loading || !newContactName.trim()}
+                        className="w-full bg-gradient-to-r from-primary to-secondary"
+                      >
+                        Добавить
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
               <ScrollArea className="h-[calc(100vh-200px)]">
                 {contacts.map((contact) => (
@@ -279,17 +379,6 @@ const Index = () => {
                           </div>
                         </div>
                       ))}
-                      {isTyping && (
-                        <div className="flex justify-start animate-fade-in">
-                          <div className="max-w-[70%] rounded-2xl p-3 bg-card border border-border">
-                            <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                              <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                              <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                       <div ref={messagesEndRef} />
                     </div>
                   </ScrollArea>
@@ -300,6 +389,7 @@ const Index = () => {
                         size="icon"
                         variant="outline"
                         onClick={handleAttachVideo}
+                        disabled={loading}
                         className="hover:bg-accent hover:text-accent-foreground transition-colors"
                       >
                         <Icon name="Video" size={20} />
@@ -309,10 +399,12 @@ const Index = () => {
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                        disabled={loading}
                         className="flex-1"
                       />
                       <Button
                         onClick={handleSendMessage}
+                        disabled={loading || !messageInput.trim()}
                         className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity"
                       >
                         <Icon name="Send" size={20} />
@@ -341,7 +433,7 @@ const Index = () => {
               </Avatar>
               <div className="space-y-2">
                 <h2 className="text-2xl font-bold">Ваш профиль</h2>
-                <p className="text-muted-foreground">user@example.com</p>
+                <p className="text-muted-foreground">you@example.com</p>
               </div>
               <div className="space-y-3 text-left">
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
@@ -350,12 +442,9 @@ const Index = () => {
                 </div>
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                   <Icon name="Mail" size={20} className="text-secondary" />
-                  <span>user@example.com</span>
+                  <span>you@example.com</span>
                 </div>
               </div>
-              <Button className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90">
-                Редактировать профиль
-              </Button>
             </Card>
           </div>
         );

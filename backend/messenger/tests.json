@@ -1,0 +1,24 @@
+{
+  "tests": [
+    {
+      "name": "Get contacts list",
+      "method": "GET",
+      "path": "/?action=contacts&userId=1",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "contacts": "array"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get messages for contact",
+      "method": "GET",
+      "path": "/?action=messages&userId=1&contactId=2",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "messages": "array"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
