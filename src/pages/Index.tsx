@@ -60,7 +60,9 @@ const Index = () => {
   });
 
   const [totalUnread, setTotalUnread] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const total = contacts.reduce((sum, contact) => sum + contact.unread, 0);
@@ -68,19 +70,17 @@ const Index = () => {
   }, [contacts]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, selectedContact]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (Math.random() > 0.7 && selectedContact && selectedContact.id !== 1) {
+      if (Math.random() > 0.6 && selectedContact) {
         simulateIncomingMessage();
       }
-    }, 10000);
+    }, 7000);
     return () => clearInterval(interval);
-  }, [selectedContact]);
+  }, [selectedContact, chatMessages]);
 
   const getCurrentTime = () => {
     const now = new Date();
@@ -90,38 +90,47 @@ const Index = () => {
   const simulateIncomingMessage = () => {
     if (!selectedContact) return;
     
-    const responses = [
-      'Как дела?',
-      'Ты где? 🤔',
-      'Ответь, пожалуйста!',
-      'Окей, понял!',
-      'Супер! 🎉',
-    ];
+    setIsTyping(true);
     
-    const randomMessage = responses[Math.floor(Math.random() * responses.length)];
-    const newMessage: Message = {
-      id: Date.now(),
-      text: randomMessage,
-      time: getCurrentTime(),
-      isMine: false,
-      type: 'text',
-    };
+    setTimeout(() => {
+      const responses = [
+        'Как дела?',
+        'Ты где? 🤔',
+        'Окей, понял!',
+        'Супер! 🎉',
+        'Спасибо большое!',
+        'А что по домашке?',
+        'Созвонимся вечером?',
+        'Увидимся завтра! 👋',
+      ];
+      
+      const randomMessage = responses[Math.floor(Math.random() * responses.length)];
+      const newMessage: Message = {
+        id: Date.now(),
+        text: randomMessage,
+        time: getCurrentTime(),
+        isMine: false,
+        type: 'text',
+      };
 
-    setChatMessages(prev => ({
-      ...prev,
-      [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage],
-    }));
+      setChatMessages(prev => ({
+        ...prev,
+        [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage],
+      }));
 
-    setContacts(prev => prev.map(c => 
-      c.id === selectedContact.id 
-        ? { ...c, lastMessage: randomMessage, time: getCurrentTime(), unread: c.id === selectedContact.id ? c.unread : c.unread + 1 }
-        : c
-    ));
+      setContacts(prev => prev.map(c => 
+        c.id === selectedContact.id 
+          ? { ...c, lastMessage: randomMessage, time: getCurrentTime() }
+          : c
+      ));
 
-    toast.info(`Новое сообщение от ${selectedContact.name}`, {
-      description: randomMessage,
-      duration: 3000,
-    });
+      setIsTyping(false);
+      
+      toast.info(`Новое сообщение от ${selectedContact.name}`, {
+        description: randomMessage,
+        duration: 2000,
+      });
+    }, 1500);
   };
 
   const handleSendMessage = () => {
@@ -246,7 +255,7 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+                  <ScrollArea className="flex-1 p-4">
                     <div className="space-y-4">
                       {(chatMessages[selectedContact.id] || []).map((message) => (
                         <div
@@ -270,6 +279,18 @@ const Index = () => {
                           </div>
                         </div>
                       ))}
+                      {isTyping && (
+                        <div className="flex justify-start animate-fade-in">
+                          <div className="max-w-[70%] rounded-2xl p-3 bg-card border border-border">
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                              <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                              <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={messagesEndRef} />
                     </div>
                   </ScrollArea>
 
